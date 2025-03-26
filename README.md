@@ -180,7 +180,3 @@ If you want to change the token separator from a comma to a semicolon and increa
 ## License
 
 This library is licensed under the **MIT License**. You can read more about it at [https://opensource.org/licenses/MIT](https://opensource.org/licenses/MIT).
-
----
-
-Now the markdown includes detailed explanations of the **customizable macros** (`#ifndef`) which allow users to tailor the library to their needs. This should help users understand how to configure and use the library effectively!
