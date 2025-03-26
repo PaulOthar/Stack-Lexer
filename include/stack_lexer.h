@@ -49,6 +49,9 @@ extern uint32_t generic_carriage;
 #define UNSIGNED_INT_56_TOKEN(LOCATION) (0x07000000 | LOCATION)
 #define UNSIGNED_INT_64_TOKEN(LOCATION) (0x08000000 | LOCATION)
 
+#define CHECK_IF_TOKEN_NUMBER(TOKEN) (TOKEN & 0x0f000000)
+#define CHECK_IF_TOKEN_STRING(TOKEN) (TOKEN & 0x10000000)
+
 /**
  * Unpacks and reads the specified token, based on the values stored in the 'generic_stack'.
  * @fn uint64_t stack_lexer_read_number(uint32_t)
@@ -107,15 +110,5 @@ extern void stack_lexer_32_build_codex(uint32_t codex[256], char* words);
  * @param codex Source of all the symbols to be identified.
  */
 extern void stack_lexer_32_scan(char* text,uint32_t codex[256]);
-
-//----<===={64 bit stack lexer}====>----//
-
-extern void stack_lexer_64_attach(char* word,uint16_t result,uint64_t codex[0x10000],uint16_t parent,uint16_t* stack_top);
-
-extern void stack_lexer_64_sort(uint64_t codex[0x10000]);
-
-extern void stack_lexer_64_build_codex(uint64_t codex[0x10000], char* words);
-
-extern void stack_lexer_64_scan(char* text,uint64_t codex[0x10000]);
 
 #endif
