@@ -28,9 +28,10 @@ uint64_t stack_lexer_read_number(uint32_t token){
 	uint8_t* generic = generic_stack + (token & 0xffffff);
 	int size = (token >> 24) & 0xf;
 
+	uint64_t holder = 0;
 	for(int i = 0;i<size;i++){
-		result = result << 8;
-		result |= generic[i];
+		holder = generic[i];
+		result |= (holder << (8 * i));
 	}
 
 	return result;
