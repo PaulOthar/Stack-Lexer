@@ -67,11 +67,6 @@ extern char* stack_lexer_read_string(uint32_t token);
 
 //----<===={32 bit stack lexer}====>----//
 
-#define SYMBOL_32(BRANCH) (BRANCH & 0xff)
-#define PARENT_32(BRANCH) ((BRANCH >> 8) & 0xff)
-#define CHILDS_32(BRANCH) ((BRANCH >> 16) & 0xff)
-#define RESULT_32(BRANCH) ((BRANCH >> 24) & 0xff)
-
 /**
  * Includes a new word to the codex, making it possible to identify it in a lexic analysis.
  * @fn void lexer_attach(char*, uint8_t, uint32_t[], uint8_t)
@@ -114,5 +109,13 @@ extern void stack_lexer_32_build_codex(uint32_t codex[256], char* words);
 extern void stack_lexer_32_scan(char* text,uint32_t codex[256]);
 
 //----<===={64 bit stack lexer}====>----//
+
+extern void stack_lexer_64_attach(char* word,uint16_t result,uint64_t codex[0x10000],uint16_t parent,uint16_t* stack_top);
+
+extern void stack_lexer_64_sort(uint64_t codex[0x10000]);
+
+extern void stack_lexer_64_build_codex(uint64_t codex[0x10000], char* words);
+
+extern void stack_lexer_64_scan(char* text,uint64_t codex[0x10000]);
 
 #endif

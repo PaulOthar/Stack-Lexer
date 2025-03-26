@@ -40,8 +40,21 @@ char* stack_lexer_read_string(uint32_t token){
 	return (char*)(generic_stack + (token & 0xffffff));
 }
 
+typedef struct branch{
+	struct branch* parent;
+	struct branch* children[16];
+	char symbol;
+	uint32_t result;
+	uint32_t index;
+	uint32_t children_size;
+}_branch;
+
 //----<===={32 bit stack lexer}====>----//
 
+#define SYMBOL_32(BRANCH) (BRANCH & 0xff)
+#define PARENT_32(BRANCH) ((BRANCH >> 8) & 0xff)
+#define CHILDS_32(BRANCH) ((BRANCH >> 16) & 0xff)
+#define RESULT_32(BRANCH) ((BRANCH >> 24) & 0xff)
 #define BRANCH_32(_SYMBOL,_PARENT,_CHILDS,_RESULT) ((_SYMBOL) | ((_PARENT) << 8) | ((_CHILDS) << 16) | ((_RESULT) << 24))
 #define RETURN_32(_BRANCH,_RESULT) (((_BRANCH) & 0xffffff) | ((_RESULT) << 24))
 #define ADOPTC_32(_BRANCH,_SCHILD) (((_BRANCH) & 0xff00ffff) | ((_SCHILD) << 16))
@@ -86,21 +99,9 @@ void stack_lexer_32_attach(char* word,uint8_t result,uint32_t codex[256],uint8_t
 	}
 }
 
-typedef struct branch{
-	struct branch* parent;
-	struct branch* children[16];
-	char symbol;
-	uint8_t result;
-	uint8_t index;
-	uint8_t children_size;
-}_branch;
-
 static void _stack_lexer_32_sort_initialize(uint32_t codex[256],_branch branches[],int size){
 	int item = 0;
 	for(item = 0;item<size;item++){//iterates over the codex, initializing and converting uint32_t in branch.
-		if(!codex[item]){//if we reached the limit of the codex (written area)
-			return;
-		}
 		uint8_t parent = PARENT_32(codex[item]);
 		if(parent == 0xff){
 			branches[item].parent = 0;
@@ -121,7 +122,7 @@ static void _stack_lexer_32_sort_initialize(uint32_t codex[256],_branch branches
 static void _stack_lexer_32_sort_children(_branch sorted[],_branch* parent,int* stack_size){
 	int prev_size = *stack_size;
 	int curr_size = *stack_size;
-	for(int i = 0;i<parent[0].children_size;i++){
+	for(uint32_t i = 0;i<parent[0].children_size;i++){
 		parent[0].children[i][0].index = curr_size;
 		sorted[curr_size++] = (parent[0].children[i][0]);
 	}
