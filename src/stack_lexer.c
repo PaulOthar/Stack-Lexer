@@ -78,7 +78,7 @@ void stack_lexer_32_attach(char* word,uint8_t result,uint32_t codex[256],uint8_t
 	}
 
 	if(CHILDS_32(codex[parent]) == 0xff){//If the parent is pointing to a invalid position, revalidate by pointing to top of the stack.
-		codex[parent] = ADOPTC_32(codex[parent],stack_top[0]);
+		codex[parent] = ADOPTC_32(codex[parent],*stack_top);
 	}
 
 	int initial_index = (parent == 0xff ? 0 : CHILDS_32(codex[parent]));//if the parent is 0xff, then it has no parent, therefore start for the beginning.
