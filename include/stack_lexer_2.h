@@ -1,6 +1,12 @@
 #ifndef STACK_LEXER
 #define STACK_LEXER
 
+typedef enum {
+	TOKEN_TYPE_WORD		=	1,
+	TOKEN_TYPE_STRING	=	2,
+	TOKEN_TYPE_NUMBER	=	3
+}token_type;
+
 typedef struct {
 	int type;
 	int value;
