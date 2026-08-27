@@ -1,31 +1,46 @@
 SRC_DIR = ./src
 INC_DIR = ./include
 BIN_DIR = ./bin
-REL_DIR = ./release
+
+TMP_DIR = ./tmp
+REL_DIR = ./lib
 
 SRC = $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/*/*.c)
 OUTPUT = $(BIN_DIR)/bin.exe
 
-CFLAGS = -Wall -Wextra -O0 -g3 -std=c99
+CFLAGS = -Wall -Wextra -O0 -g3
+
+VALGRIND_OUT = ./valgrind/analysis.out
+CALLGRIND_FLAGS = --tool=callgrind --dump-line=yes --dump-instr=yes --collect-jumps=yes --collect-systime=yes --collect-bus=yes --cache-sim=yes --branch-sim=yes --simulate-wb=yes --simulate-hwpref=yes --cacheuse=yes --time-stamp=yes
 
 CC = gcc
 
 all:
 	$(CC) $(SRC) -o $(OUTPUT) -I$(INC_DIR) $(CFLAGS)
-
+	
+mcall:
+	$(CC) $(SRC) -o $(OUTPUT) -I$(INC_DIR) $(CFLAGS) 
+	#make all
+	rm -f $(VALGRIND_OUT)
+	valgrind $(CALLGRIND_FLAGS) --callgrind-out-file=$(VALGRIND_OUT) $(OUTPUT)
+	sudo kcachegrind $(VALGRIND_OUT)
+	
 #-------------------------------------------------
 	
 LIBNAME = stack_lexer
 OS := $(shell uname)
 ifeq ($(OS), Linux)
-	OSTYPE = linux
+	OSTYPE = Linux
 else
-	OSTYPE = windows
+	OSTYPE = Windows
 endif
 
-RELEASE = $(REL_DIR)/$(LIBNAME)_$(OSTYPE).o
-RELEASE_ASM = $(REL_DIR)/$(LIBNAME)_$(OSTYPE).a
+RELEASE_OBJ = $(TMP_DIR)/$(LIBNAME).o
+RELEASE_ASM = $(REL_DIR)/$(OSTYPE)/lib$(LIBNAME).a
 	
-launch:
-	$(CC) -c $(SRC_DIR)/$(LIBNAME).c -o $(RELEASE) -I$(INC_DIR)
-	ar rcs $(RELEASE_ASM) $(RELEASE)
+release-build:
+	@mkdir -p $(TMP_DIR)
+	@mkdir -p $(REL_DIR)
+	@mkdir -p $(REL_DIR)/$(OSTYPE)
+	$(CC) -c $(SRC_DIR)/$(LIBNAME).c -o $(RELEASE_OBJ) -I$(INC_DIR)
+	ar rcs $(RELEASE_ASM) $(RELEASE_OBJ)

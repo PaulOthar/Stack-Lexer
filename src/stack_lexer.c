@@ -1,266 +1,230 @@
-#include "stack_lexer.h"
+#include "../include/stack_lexer.h"
 
-uint32_t tokens_stack[STACK_LEXER_TOKENS_STACK_SIZE];
-uint32_t tokens_carriage;
+lexic_branch* __initialize_branch(lexic_branch* branch){
+	branch->children = 0; branch->parent = 0;
+	branch->word_id = -1; branch->symbol = 0;
+	branch->family_size = 0; branch->hard = 0;
+	return branch;
+}
 
-uint8_t generic_stack[STACK_LEXER_GENERIC_STACK_SIZE];
-uint32_t generic_carriage;
-
-static void _stack_lexer_write_number(uint64_t value){
-	if(!value){
-		return;
-	}
-
-	uint8_t size = 0;
-	uint32_t address = generic_carriage;
-	for(size = 0;size < 8;size++){
-		if(!value){
+int _insert_word(lexic_branch* root, lexic_branch* branches, lexic_word* word, int depth){
+	char* text = word->word; int i = 0;
+	lexic_branch* father = root; int carriage = 0;
+	for(char c = text[i]; c != 0; c = text[++i]){
+	for(lexic_branch* current = &branches[carriage];carriage < depth; current = &branches[++carriage]){
+		if(current->symbol == 0){//We hit a null symbol, therefore the is no more words from here
+			current->parent = father;
+			current->symbol = c;
+			father->family_size++;
+			father = current;
+			carriage++;
+			__initialize_branch(&branches[carriage]);//Initalizes the next branch, so we know where the end is
 			break;
 		}
-		PUSH_GENERIC((value & 0xff));
-		value = value >> 8;
-	}
-	PUSH_TOKEN(((size << 24) | address));
+		if((current->symbol == c) && (current->parent == father)){
+			father = current;
+			carriage++;
+			break;
+		}
+	}}
+	father->word_id = word->word_id;
+	father->hard = word->hard;
+	return carriage;
 }
 
-uint64_t stack_lexer_read_number(uint32_t token){
-	uint64_t result = 0;
-	uint8_t* generic = generic_stack + (token & 0xffffff);
-	int size = (token >> 24) & 0xf;
-
-	uint64_t holder = 0;
-	for(int i = 0;i<size;i++){
-		holder = generic[i];
-		result |= (holder << (8 * i));
-	}
-
-	return result;
+void ___copy_branch(lexic_branch* source, lexic_branch* destination){
+	destination->children = source->children;
+	destination->word_id = source->word_id;
+	destination->family_size = source->family_size;
+	destination->hard = source->hard;
+	destination->parent = source->parent;
+	destination->symbol = source->symbol;
 }
 
-char* stack_lexer_read_string(uint32_t token){
-	return (char*)(generic_stack + (token & 0xffffff));
-}
-
-typedef struct branch{
-	struct branch* parent;
-	struct branch* children[16];
-	char symbol;
-	uint32_t result;
-	uint32_t index;
-	uint32_t children_size;
-}_branch;
-
-//----<===={32 bit stack lexer}====>----//
-
-#define SYMBOL_32(BRANCH) (BRANCH & 0xff)
-#define PARENT_32(BRANCH) ((BRANCH >> 8) & 0xff)
-#define CHILDS_32(BRANCH) ((BRANCH >> 16) & 0xff)
-#define RESULT_32(BRANCH) ((BRANCH >> 24) & 0xff)
-#define BRANCH_32(_SYMBOL,_PARENT,_CHILDS,_RESULT) ((_SYMBOL) | ((_PARENT) << 8) | ((_CHILDS) << 16) | ((_RESULT) << 24))
-#define RETURN_32(_BRANCH,_RESULT) (((_BRANCH) & 0xffffff) | ((_RESULT) << 24))
-#define ADOPTC_32(_BRANCH,_SCHILD) (((_BRANCH) & 0xff00ffff) | ((_SCHILD) << 16))
-
-void stack_lexer_32_attach(char* word,uint8_t result,uint32_t codex[256],uint8_t parent,uint8_t* stack_top){
-	if(!word[0]){//if we reached the null char
-		codex[parent] = RETURN_32(codex[parent],result);//redefine the result of the current word
-		return;
+lexic_branch* __fetch_children(lexic_branch* parent, lexic_branch* source, lexic_branch* destination, int size){
+	for(int i = 0; i < size; i++){
+		lexic_branch* current = &source[i];
+		if(current->parent != parent){ continue; }
+		___copy_branch(current, destination);
+		destination->children = current;//Used as a makeshift address holder.
+		destination++;
 	}
 
-	if(!stack_top){
-		uint8_t top = 0;
-		for(top = 0;top<255;top++){
-			if(!codex[top]){
-				break;
+	return destination;
+}
+
+void _organize_branches(lexic_branch* source, lexic_branch* destination, int size){
+	lexic_branch* end_destination = __fetch_children(0, source, destination, size);
+	do{
+		lexic_branch* previous_end_destination = end_destination;
+		lexic_branch* current_end_destination = end_destination;
+
+		for(lexic_branch* current_parent = destination; current_parent != end_destination; current_parent++){
+			if(current_parent->family_size == 0){ current_parent->children = 0; continue; }
+			current_end_destination = __fetch_children(current_parent->children, source, current_end_destination, size);
+			current_parent->children = previous_end_destination;
+			for(;previous_end_destination != current_end_destination; previous_end_destination++){
+				previous_end_destination->parent = current_parent;
 			}
 		}
-		stack_lexer_32_attach(word,result,codex,parent,&top);
-		return;
-	}
-
-	if(CHILDS_32(codex[parent]) == 0xff){//If the parent is pointing to a invalid position, revalidate by pointing to top of the stack.
-		codex[parent] = ADOPTC_32(codex[parent],*stack_top);
-	}
-
-	int initial_index = (parent == 0xff ? 0 : CHILDS_32(codex[parent]));//if the parent is 0xff, then it has no parent, therefore start for the beginning.
-	for(int i = initial_index;i<256;i++){
-		uint32_t branch = codex[i];
-
-		if(branch){
-			if(PARENT_32(branch) != parent || SYMBOL_32(branch) != (*word&0xff)){
-				continue;
-			}
-			stack_lexer_32_attach(++word,result,codex,i,stack_top);
-			break;
-		}
-		if(!word[1]){
-			codex[i] = BRANCH_32(*word,parent,0xff,result);
-			break;
-		}
-		codex[i] = BRANCH_32(*word,parent,i+1,0);
-		stack_lexer_32_attach(++word,result,codex,i,stack_top);
-		break;
-	}
+		destination = end_destination;
+		end_destination = current_end_destination;
+	}while(end_destination != destination);
 }
 
-static void _stack_lexer_32_sort_initialize(uint32_t codex[256],_branch branches[],int size){
-	for(int item = 0;item<size;item++){//iterates over the codex, initializing and converting uint32_t in branch.
-		uint8_t parent_index = PARENT_32(codex[item]);
-		uint8_t result = RESULT_32(codex[item]);
-		char symbol = (char)SYMBOL_32(codex[item]);
-
-		_branch* branch = &branches[item];
-
-		branch->parent = 0;
-		branch->symbol = symbol;
-		branch->result = result;
-		branch->children_size = 0;
-
-		if(parent_index != 0xff){
-			_branch* parent = &branches[parent_index];
-			branch->parent = parent;//points to the current branch parent
-			parent->children[parent->children_size++] = branch;//sets itself as a child of its parent
-		}
-
-		for(int l = 0;l<16;l++){
-			branch->children[l] = 0;
-		}
+int stack_lexer_build_codex(lexic_word* words, int wc, lexic_branch* branches, int bc){
+	lexic_branch temp_branches[bc];
+	lexic_branch* root = __initialize_branch(temp_branches);
+	lexic_branch* newtop = __initialize_branch(temp_branches + 1);
+	int general_top = 0;
+	for(int i = 0; i < wc; i++){
+		int curr_top = _insert_word(root, newtop, &words[i], bc);
+		if(curr_top > general_top){ general_top = curr_top; }
 	}
+
+	_organize_branches(temp_branches, branches, general_top);
+
+	return general_top;
 }
 
-static void _stack_lexer_32_sort_children(_branch sorted[],_branch* parent,int* stack_size){
-	int prev_size = *stack_size;
-	int curr_size = *stack_size;
+//----------------------------------------------------------------------------------
 
-	for(uint32_t i = 0;i<parent[0].children_size;i++){
-		parent->children[i]->index = curr_size;
-		sorted[curr_size++] = *(parent->children[i]);
+lexic_branch* _find_child(lexic_branch* parent, lexic_branch* source, char target){
+	if(!source){ return 0; }
+	for(; source->parent == parent; source++){
+		if(source->symbol == target){ return source; }
 	}
-
-	*stack_size = curr_size;
-
-	for(int i = prev_size;i < curr_size;i++){
-		_stack_lexer_32_sort_children(sorted,&sorted[i],stack_size);
-	}
+	return 0;
 }
 
-void stack_lexer_32_sort(uint32_t codex[256]){
-	int size = 0;
-	for(size = 0;size<256;size++){
-		if(!codex[size]){
-			break;
-		}
-	}
-	_branch branches[size];
-	_stack_lexer_32_sort_initialize(codex,branches,size);
+typedef enum {
+	NONE        =   0,
+	STRING      =   1,
+	NUMBER      =   2,
+	IDENTIFIER  =   3,
+}parser_modes;
 
-	_branch sorted[size];
-	int stack_size = 0;
-	for(int i = 0;i<size;i++){//puts the root words in the sorted array, setting its index accordingly.
-		if(branches[i].parent){
-			continue;
-		}
-		branches[i].index = stack_size;
-		sorted[stack_size++] = branches[i];
-	}
+typedef enum{
+	DECIMAL     =   1,
+	BINARY      =   2,
+	OCTAL       =   3,
+	HEXADECIMAL =   4,
+}parser_submodes;
 
-	int prev_size = stack_size;
-	for(int i = 0;i<prev_size;i++){
-		_stack_lexer_32_sort_children(sorted, &sorted[i], &stack_size);
-	}
-
-	for(int i = 0;i<size;i++){//Rebuilds the codex, based on the sorted array.
-		_branch current = sorted[i];
-		uint8_t sorted_parent = current.parent ? current.parent->index : 0xff;
-		uint8_t sorted_child = *current.children ? (*current.children)->index : 0xff;
-		codex[i] = BRANCH_32(current.symbol,sorted_parent,sorted_child,current.result);
-	}
+void _write_token_word(lexic_token* token, int word_id){
+	token->type = TOKEN_TYPE_WORD;
+	token->value = word_id;
 }
 
-void stack_lexer_32_build_codex(uint32_t codex[256], char* words){
-	char word[256];
-	int result = 1;
-	int word_carriage = 0;
-	uint8_t stack_top = 0;
-
-	for(int i = 0;i<256;i++){ codex[i] = 0; word[i] = 0; }
-	for(char letter = *words++;1;letter = *words++){
-		if(letter && letter != STACK_LEXER_BUILDER_SEPARATOR){
-			word[word_carriage++] = letter;
-			continue;
-		}
-		word[word_carriage] = '\0';
-		word_carriage = 0;
-		stack_lexer_32_attach(word,result++,codex,0xff,&stack_top);
-
-		if(!letter){ break; }
-	}
-
-	stack_lexer_32_sort(codex);
+void _write_token_string(lexic_token* token, int size, char* ptr){
+	token->type = TOKEN_TYPE_STRING;
+	token->value = size;
+	token->content = ptr;
 }
 
-void stack_lexer_32_scan(char* text,uint32_t codex[256]){
-	tokens_carriage = 0;
-	generic_carriage = 0;
+void _write_token_number(lexic_token* token, int value){
+	token->type = TOKEN_TYPE_NUMBER;
+	token->value = value;
+}
 
-	uint64_t number = 0;
-	uint32_t string_start = 0;
-	uint8_t current_branch = 0xff;
-	uint8_t previous_branch = 0xff;
-	uint8_t mode = 0;
+int stack_lexer_parse(char* source, lexic_branch* root, lexic_token* tokens){
+	lexic_token* origin = tokens;
 
-	for(char current = *(text++); current; current = *(text++)){
+	int mode = 0, submode = 0;
+	int value = 0; char* str = 0;
+
+	lexic_branch* current_branch = root;
+	lexic_branch* previous_branch = root;
+
+	int id_start = 0, depth = 0;
+
+	char c = source[0];
+	for(int i = 0; c; c = source[++i]){
 		switch(mode){
-		case 0: break;//break from the switch, not the for loop
-		case 1:
-			if(current == STACK_LEXER_SYMBOL_NUMBER_END){ mode = 0; current = STACK_LEXER_SYMBOL_NUMBER_NEXT; }
-			if(current == STACK_LEXER_SYMBOL_NUMBER_NEXT){ _stack_lexer_write_number(number); number = 0; continue; }
-			number *= 10; number += (current & 0xff) - 48; continue;
-		case 2:
-			if(current == STACK_LEXER_SYMBOL_STRING_CAPTURING){ mode = 0; PUSH_TOKEN(STRING_TOKEN(string_start)); continue; }
-			PUSH_GENERIC(current); continue;
+			case NONE: break;
+			case STRING:
+				if(c != submode){ value++; continue; }
+				_write_token_string(tokens++, value, str);
+				value = 0; str = 0; submode = 0; mode = NONE;
+				continue;
+			case NUMBER:
+				switch(submode){
+					default:
+						if(value > 0){ submode = DECIMAL; }
+						else if(c == 66 || c == 98){ submode = BINARY; continue; }
+						else if(c == 79 || c == 111){ submode = OCTAL; continue; }
+						else if(c == 88 || c == 120){ submode = HEXADECIMAL; continue; } // @suppress("No break at end of case")
+						//Should leak to Decimal (default)
+					case DECIMAL:
+						if(c >= 48 && c <= 57){ value *= 10; value += c - 48; continue; }
+						break;
+					case BINARY:
+						if(c >= 48 && c <= 49){ value <<= 1; value |= c - 48; continue; }
+						break;
+					case OCTAL:
+						if(c >= 48 && c <= 55){ value <<= 3; value |= c - 48; continue; }
+						break;
+					case HEXADECIMAL:
+						if(c >= 48 && c <= 57){ value <<= 4; value |= c - 48; continue; }
+						if(c >= 65 && c <= 70){ value <<= 4; value |= c - 55; continue; }
+						if(c >= 97 && c <= 102){ value <<= 4; value |= c - 87; continue; }
+						break;
+				}
+				_write_token_number(tokens++, value);
+				value = 0; i--; submode = 0; mode = NONE;
+				continue;
 		}
 
-		if(current_branch != 0xff){
-			previous_branch = current_branch;
-			uint8_t childs = CHILDS_32(codex[current_branch]);
+		previous_branch = current_branch;
+		current_branch = _find_child(current_branch, current_branch->children, c);
 
-			if(childs == 0xff){ current_branch = 0xff; text--; continue; }
+		if(current_branch){
+			if(mode != IDENTIFIER){ mode = IDENTIFIER; id_start = i; }
+			depth++; continue;
+		}//we found a token, skip other checks
+        //If it reached here, we didn't find a token.
 
-			for(int i = childs; i < 0xff; i++){
-				//if it is not from this sequence
-				if(current_branch != PARENT_32(codex[i])){ current_branch = 0xff; text--; break; }
-				if((current & 0xff) == SYMBOL_32(codex[i])){ current_branch = i; break; }
+		current_branch = root;//Reset current, for the next loop
+
+		if(previous_branch->word_id != -1){//if it was an endpoint token before invalidating
+			if(previous_branch->hard){
+				int id_end = i - depth;
+				if(id_end != id_start){
+					_write_token_string(tokens++, id_end - id_start, &source[id_start]);
+				}
 			}
+			else if((depth < (i - id_start)) || (((c & 0xFF) > 32) && ((c & 0xFF) < 128))){
+				previous_branch = current_branch; depth = 0; i--; continue;
+			}
+
+			_write_token_word(tokens++, previous_branch->word_id); depth = 0; i--;
+			value = 0; submode = 0; mode = NONE;
 			continue;
 		}
 
-		for(int i = 0; i < 0xff; i++){//Try to find a root token that has the current symbol
-			if(PARENT_32(codex[i]) != 0xff){ break; }
-			if(SYMBOL_32(codex[i]) == (current & 0xff)){ current_branch = i; break; }
+		if(mode == IDENTIFIER){ if(c <= 32 && previous_branch->parent == 0){
+			_write_token_string(tokens++, i - id_start, &source[id_start]);
+			value = 0; submode = 0; mode = NONE;
+		}}
+		else if(depth == 0){
+			if(c == 39 || c == 34 || c == 96){ mode = STRING; submode = c; str = &source[i + 1]; continue; }//if equals ' or " or ` XXX the part &source[i] might need to be i + 1
+			if(c >= 48 && c <= 57){ mode = NUMBER; i--; continue; }
+			if(c > 32){ mode = IDENTIFIER; id_start = i; continue; }
 		}
+		//If it reached here, we were on the path of a token, but got invalidated
 
-		if(current_branch == 0xff){
-			switch(current){
-			case STACK_LEXER_SYMBOL_NUMBER_START: mode = 1; number = 0; break;
-			case STACK_LEXER_SYMBOL_STRING_CAPTURING: mode = 2; string_start = generic_carriage; break;
+		for(; depth > 0; depth--, i--){//step back in case we did at some point have a valid token.
+			previous_branch = previous_branch->parent;
+			if(previous_branch->word_id != -1 && previous_branch->hard){
+				int id_end = i - depth;
+				if(id_end != id_start){
+					_write_token_string(tokens++, id_end - id_start, &source[id_start]);
+					value = 0; str = 0; submode = 0; mode = NONE;
+				}
+				_write_token_word(tokens++, previous_branch->word_id); depth = 0; i -= 2; break;
 			}
 		}
-
-		if(previous_branch == 0xff){ continue; }
-
-		uint8_t result = RESULT_32(codex[previous_branch]);
-		if(result){ PUSH_TOKEN(result); }
-		previous_branch = 0xff;
 	}
 
-	switch(mode){
-	case 0: break;
-	case 1: _stack_lexer_write_number(number); return;
-	case 2: PUSH_TOKEN(STRING_TOKEN(string_start)); return;
-	}
-
-	if(current_branch == 0xff){ return; }
-
-	uint8_t result = RESULT_32(codex[current_branch]);
-	if(result){ PUSH_TOKEN(result); }
+	return tokens - origin;
 }
