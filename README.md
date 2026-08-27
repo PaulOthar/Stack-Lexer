@@ -1,182 +1,397 @@
-# Stack-Lexer - Simple lexical analysis library
-Stack-Lexer is a simple static library for performing lexical analysis on strings. It is designed to store tokens and value in the stack, allowing you to """"pre-compile"""" a lexical codex for static token identification.
+Stack-Lexer
 
-## How to use
-### Step 1: Include the library in your project
+A very simple lexical analysis library written in C.
 
-```c
+Stack-Lexer provides a lightweight way to tokenize text using a pre-built lexical codex. Instead of dynamically allocating the structures required during lexical analysis, the library allows the caller to provide pre-allocated memory for both the lexical tree and the generated tokens.
+
+The lexer is designed around a simple idea:
+
+Words
+  │
+  ▼
+Lexical Codex
+  │
+  ▼
+Source Text
+  │
+  ▼
+Tokens
+
+
+A list of lexic_word entries is first used to build a lexical codex. The resulting codex can then be used to parse source text and produce an array of lexic_token structures.
+
+Features
+Simple C API.
+Pre-built lexical codex.
+No mandatory dynamic allocation by the lexer.
+Caller-controlled memory allocation.
+Tree-based word recognition.
+Support for words, strings, and numbers.
+Suitable for small parsers, interpreters, configuration languages, and embedded projects.
+How to use
+1. Include the library
+
+Include the Stack-Lexer header in your project:
+
 #include "stack_lexer.h"
-```
 
-### Step 2: Compile and link the library
-To link the library you will need to include a few flags:
-```bash
-# if the library folder is in the root of the project:
--I./Stack-Lexer/include -L./Stack-Lexer/lib -lstack_lexer
+2. Prepare the vocabulary
 
-#if the library folder is in some 'lib' folder, inside the project:
--I./lib/Stack-Lexer/include -L./lib/Stack-Lexer/lib -lstack_lexer
-```
+Create an array of lexic_word structures containing the words that should be recognized by the lexer.
 
-## Available Functions
+lexic_word words[] = {
+    { "hello", 1, 1 },
+    { "world", 2, 1 }
+};
 
-### 1. **`uint64_t stack_lexer_read_number(uint32_t token)`**
 
-Unpacks and reads the token based on the value stored in the `generic_stack` global variable.
+Each word has an associated identifier (word_id) that can later be used to identify the recognized word.
 
-- **Parameters**: `token` — The token.
-- **Returns**: The unpacked value from the token.
+3. Allocate the lexical codex
 
-### 2. **`char* stack_lexer_read_string(uint32_t token)`**
+The lexical codex is stored in a caller-provided array of lexic_branch.
 
-Converts the token into a string based on the value stored in the `generic_stack` global variable.
+lexic_branch branches[64];
 
-- **Parameters**: `token` — The token.
-- **Returns**: A pointer to the string unpacked from the token.
 
-### 3. **`void stack_lexer_32_attach(char* word, uint8_t result, uint32_t codex[256], uint8_t parent, uint8_t* stack_top)`**
+The array must be large enough to contain all branches required by the vocabulary.
 
-Adds a word to the vocabulary (codex), allowing it to be identified during lexical analysis.
+4. Build the codex
 
-- **Parameters**:
-  - `word`: The word to be added to the vocabulary.
-  - `result`: The identifier code for this word (ranging from 1 to 254).
-  - `codex`: The vocabulary (an array of 256 entries) where the word will be stored.
-  - `parent`: The parent word (set as `0xff` if it’s a new word).
-  - `stack_top`: The top of the stack, which is automatically updated.
+Pass the vocabulary and branch storage to stack_lexer_build_codex():
 
-### 4. **`void stack_lexer_32_sort(uint32_t codex[256])`**
+int used = stack_lexer_build_codex(
+    words,
+    2,
+    branches,
+    64
+);
 
-Sorts the items in the vocabulary (`codex`), making it ready for use in lexical analysis.
 
-- **Parameters**: `codex` — The vocabulary to be sorted.
+The function returns the number of branches used by the generated codex.
 
-### 5. **`void stack_lexer_32_build_codex(uint32_t codex[256], char* words)`**
+5. Parse a source string
 
-Builds a new vocabulary from a set of words.
+Once the codex has been built, it can be used to parse text.
 
-- **Parameters**:
-  - `codex`: A pre-allocated codex to be populated.
-  - `words`: A list of words to be identified (separated by commas).
+lexic_token tokens[64];
 
-### 6. **`void stack_lexer_32_scan(char* text, uint32_t codex[256])`**
+int count = stack_lexer_parse(
+    "hello world",
+    &branches[0],
+    tokens
+);
 
-Performs lexical analysis on a text, scanning for tokens, and stores the found tokens in the global `tokens_stack`. Literals of both values and strings are stored in the `generic_stack`.
 
-- **Parameters**:
-  - `text`: The text to be scanned for tokens.
-  - `codex`: The vocabulary to be used for identifying tokens.
+The returned value is the number of tokens generated.
 
-## Important Variables and Macros
+API
+stack_lexer_build_codex
+int stack_lexer_build_codex(
+    lexic_word* words,
+    int words_size,
+    lexic_branch* branches,
+    int branches_size
+);
 
-### Stacks Used:
 
-- **`tokens_stack[STACK_LEXER_TOKENS_STACK_SIZE]`**: Stack for storing tokens during lexical analysis.
-- **`generic_stack[STACK_LEXER_GENERIC_STACK_SIZE]`**: Stack for storing literals (strings, numbers, etc.).
+Builds a lexical codex from a list of predefined words.
 
-### Macro Functions:
+Parameters
+words — Array containing the words to add to the codex.
+words_size — Number of elements in the words array.
+branches — Pre-allocated array used to store the lexical tree.
+branches_size — Number of available elements in the branches array.
+Return value
 
-- **`PUSH_TOKEN(TOKEN)`**: Pushes a token onto the `tokens_stack`.
-- **`PUSH_GENERIC(GENERIC)`**: Pushes a value onto the `generic_stack`.
+Returns the number of branches used by the generated codex.
 
-### Token Types:
+Example
+lexic_word words[] = {
+    { "if", 1, 1 },
+    { "else", 2, 1 },
+    { "while", 3, 1 }
+};
 
-- **`STRING_TOKEN(LOCATION)`**: Token for strings.
-- **`UNSIGNED_INT__8_TOKEN(LOCATION)`**: Token for 8-bit unsigned integer.
-- **`UNSIGNED_INT_16_TOKEN(LOCATION)`**: Token for 16-bit unsigned integer.
-- **`UNSIGNED_INT_32_TOKEN(LOCATION)`**: Token for 32-bit unsigned integer.
-- **`UNSIGNED_INT_64_TOKEN(LOCATION)`**: Token for 64-bit unsigned integer.
+lexic_branch branches[128];
 
-### Customizable Macros
+int used = stack_lexer_build_codex(
+    words,
+    3,
+    branches,
+    128
+);
 
-There are several macros in the `stack_lexer.h` header that can be customized to fit the needs of your specific use case. These macros are **defined with `#ifndef`** to allow overriding during compilation or in your project’s code.
 
-### 1. **`STACK_LEXER_BUILDER_SEPARATOR`**
-Defines the separator used when building a list of words in the vocabulary. By default, it is a comma (`,`).
+Warning: The function expects branches to have enough capacity. If the array is too small, the implementation may access memory outside the allocated array, potentially causing a segmentation fault or other undefined behavior.
 
-```c
-#ifndef STACK_LEXER_BUILDER_SEPARATOR
-#define STACK_LEXER_BUILDER_SEPARATOR ','
-#endif
-```
+stack_lexer_parse
+int stack_lexer_parse(
+    char* source,
+    lexic_branch* root,
+    lexic_token* tokens
+);
 
-- **Customizable**: You can modify this to use any other separator, like a space (`' '`), semicolon (`;`), etc.
 
-### 2. **`STACK_LEXER_SYMBOL_NUMBER_START`**
-Defines the starting symbol for identifying number tokens. By default, it is set to `'['`.
+Parses a source string using an existing lexical codex and generates tokens.
 
-```c
-#ifndef STACK_LEXER_SYMBOL_NUMBER_START
-#define STACK_LEXER_SYMBOL_NUMBER_START '['
-#endif
-```
+Parameters
+source — Null-terminated text to be parsed.
+root — Root branch of the lexical codex.
+tokens — Pre-allocated array where generated tokens will be stored.
+Return value
 
-- **Customizable**: Change this symbol to any other character for your lexic analysis needs.
+Returns the number of tokens generated by the parser.
 
-### 3. **`STACK_LEXER_SYMBOL_NUMBER_END`**
-Defines the ending symbol for number tokens. By default, it is set to `']'`.
+Example
+lexic_token tokens[128];
 
-```c
-#ifndef STACK_LEXER_SYMBOL_NUMBER_END
-#define STACK_LEXER_SYMBOL_NUMBER_END ']'
-#endif
-```
+int count = stack_lexer_parse(
+    "hello world",
+    &branches[0],
+    tokens
+);
 
-- **Customizable**: Adjust it as needed to match your format.
 
-### 4. **`STACK_LEXER_SYMBOL_NUMBER_NEXT`**
-Defines the symbol that separates multiple numbers. By default, it is a comma (`,`).
+Warning: The function does not receive the size of the tokens array. The caller must therefore ensure that enough space is available for every token that may be generated. An undersized array may result in out-of-bounds memory access and undefined behavior.
 
-```c
-#ifndef STACK_LEXER_SYMBOL_NUMBER_NEXT
-#define STACK_LEXER_SYMBOL_NUMBER_NEXT ','
-#endif
-```
+Data Structures
+token_type
+typedef enum {
+    TOKEN_TYPE_WORD   = 1,
+    TOKEN_TYPE_STRING = 2,
+    TOKEN_TYPE_NUMBER = 3
+} token_type;
 
-- **Customizable**: Change it to another symbol if required, such as a semicolon (`;`), space (`' '`), etc.
 
-### 5. **`STACK_LEXER_SYMBOL_STRING_CAPTURING`**
-Defines the symbol used for capturing string tokens. By default, it is set to `"`, the double quote.
+Defines the types of tokens supported by the lexer.
 
-```c
-#ifndef STACK_LEXER_SYMBOL_STRING_CAPTURING
-#define STACK_LEXER_SYMBOL_STRING_CAPTURING '"'
-#endif
-```
+Type	Value	Description
+TOKEN_TYPE_WORD	1	A word recognized by the lexical codex.
+TOKEN_TYPE_STRING	2	A string token.
+TOKEN_TYPE_NUMBER	3	A number token.
+lexic_token
+typedef struct {
+    int type;
+    int value;
+    void* content;
+} lexic_token;
 
-- **Customizable**: Modify it to any other character used for string capturing.
 
-### 6. **`STACK_LEXER_TOKENS_STACK_SIZE`**
-Defines the size of the token stack. The default size is 256 tokens.
+Represents a token generated by stack_lexer_parse().
 
-```c
-#ifndef STACK_LEXER_TOKENS_STACK_SIZE
-#define STACK_LEXER_TOKENS_STACK_SIZE 256
-#endif
-```
+Field	Description
+type	Token type, represented by token_type.
+value	Integer value associated with the token.
+content	Pointer to additional token data.
 
-- **Customizable**: Change this value to increase or decrease the size of the token stack.
+The interpretation of value and content depends on the token type and the lexer implementation.
 
-### 7. **`STACK_LEXER_GENERIC_STACK_SIZE`**
-Defines the size of the generic stack. The default size is 1024 values.
+lexic_word
+typedef struct {
+    char* word;
+    int word_id;
+    int hard;
+} lexic_word;
 
-```c
-#ifndef STACK_LEXER_GENERIC_STACK_SIZE
-#define STACK_LEXER_GENERIC_STACK_SIZE 1024
-#endif
-```
 
-- **Customizable**: Adjust the size of the generic stack as necessary.
+Represents an entry in the lexer vocabulary.
 
-### Example of Modifying Macros
+Field	Description
+word	Null-terminated string containing the word.
+word_id	Identifier associated with the word.
+hard	Controls whether the word is treated as a hard lexical entry.
 
-If you want to change the token separator from a comma to a semicolon and increase the size of the `generic_stack` to 2048, you can modify the macros like this:
+Example:
 
-```c
-#define STACK_LEXER_BUILDER_SEPARATOR ';'
-#define STACK_LEXER_GENERIC_STACK_SIZE 2048
-```
+lexic_word words[] = {
+    { "if", 1, 1 },
+    { "while", 2, 1 },
+    { "return", 3, 1 }
+};
 
-## License
+lexic_branch
+typedef struct lbranch {
+    char symbol;
+    struct lbranch* parent;
+    struct lbranch* children;
+    int family_size;
+    int word_id;
+    int hard;
+} lexic_branch;
 
-This library is licensed under the **MIT License**. You can read more about it at [https://opensource.org/licenses/MIT](https://opensource.org/licenses/MIT).
+
+Represents a node in the lexical codex.
+
+The codex is organized as a tree in which each branch represents a character of a registered word.
+
+Field	Description
+symbol	Character represented by the branch.
+parent	Pointer to the parent branch.
+children	Pointer to the branch's child nodes.
+family_size	Number of children belonging to the branch.
+word_id	Identifier of the word associated with the branch.
+hard	Indicates the lexical behavior associated with the branch.
+
+For example, registering the words cat and car allows both words to share the branches representing c and a before diverging at t and r.
+
+root
+ └── c
+      └── a
+           ├── t
+           └── r
+
+
+This structure allows the lexer to traverse the codex character by character while parsing the source text.
+
+Token Types
+
+Stack-Lexer currently exposes three token categories.
+
+Words
+
+Words are entries previously registered in the lexical codex.
+
+TOKEN_TYPE_WORD
+
+
+The associated value can be used to identify the registered word through its word_id.
+
+Strings
+
+Strings are represented using:
+
+TOKEN_TYPE_STRING
+
+
+Additional information about the string can be accessed through the token's content field, depending on the implementation.
+
+Numbers
+
+Numbers are represented using:
+
+TOKEN_TYPE_NUMBER
+
+
+Numeric information can be stored in the token's value or through content, depending on how the parser produces the token.
+
+Memory Model
+
+One of the main characteristics of Stack-Lexer is that the caller provides the memory used by the lexer.
+
+The codex is stored in a pre-allocated lexic_branch array:
+
+lexic_branch branches[128];
+
+
+Likewise, generated tokens are stored in a pre-allocated lexic_token array:
+
+lexic_token tokens[128];
+
+
+This approach avoids requiring the lexer to allocate memory for these structures during normal operation.
+
+It can be particularly useful for applications where memory usage needs to be predictable, such as embedded systems, small interpreters, or custom language implementations.
+
+Buffer sizes
+
+The caller is responsible for determining appropriate buffer sizes.
+
+There are two important buffers:
+
+branches[]  → lexical codex
+tokens[]    → parser output
+
+
+If either buffer is too small, the current API does not provide a mechanism for the lexer to report that condition safely.
+
+Complete Example
+#include "stack_lexer.h"
+
+int main(void)
+{
+    lexic_word words[] = {
+        { "hello", 1, 1 },
+        { "world", 2, 1 },
+        { "return", 3, 1 }
+    };
+
+    lexic_branch branches[128];
+    lexic_token tokens[128];
+
+    /*
+     * Build the lexical codex.
+     */
+    int branch_count = stack_lexer_build_codex(
+        words,
+        3,
+        branches,
+        128
+    );
+
+    /*
+     * Parse a source string using the generated codex.
+     */
+    int token_count = stack_lexer_parse(
+        "hello world",
+        &branches[0],
+        tokens
+    );
+
+    /*
+     * branch_count contains the number of branches used.
+     * token_count contains the number of generated tokens.
+     */
+
+    (void)branch_count;
+    (void)token_count;
+
+    return 0;
+}
+
+Recommended Workflow
+
+A typical application using Stack-Lexer follows this sequence:
+
+Define the vocabulary using lexic_word.
+Allocate a sufficiently large lexic_branch array.
+Build the lexical codex with stack_lexer_build_codex().
+Keep the generated codex available while parsing.
+Allocate a sufficiently large lexic_token array.
+Parse source text with stack_lexer_parse().
+Process the generated tokens.
+
+The codex can be built once and reused for multiple source strings, as long as its underlying memory remains valid.
+
+Limitations
+
+The current API intentionally keeps the interface small, but this also places some responsibilities on the caller.
+
+Buffer sizes are supplied only when building the codex, not when parsing.
+stack_lexer_parse() cannot directly validate the capacity of the token array.
+stack_lexer_build_codex() may access memory beyond branches if insufficient capacity is provided.
+Token content is exposed as void*, so the caller must know how to interpret the pointed data.
+The API does not expose explicit error codes for malformed input or insufficient memory.
+
+For applications requiring strict bounds checking, additional validation should be implemented by the caller or the API can be extended to accept destination capacities.
+
+Project Structure
+
+The project separates its public interface from its implementation:
+
+Stack-Lexer/
+├── include/
+│   └── stack_lexer.h
+├── src/
+│   └── stack_lexer.c
+├── Makefile
+├── LICENSE
+└── README.md
+
+
+The public API is exposed through include/stack_lexer.h, while the implementation is contained in src/stack_lexer.c. This follows the same general organization used by the repository.
+
+License
+
+Stack-Lexer is distributed under the MIT License.
+See the LICENSE file for the complete license text.

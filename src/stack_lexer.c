@@ -72,13 +72,13 @@ void _organize_branches(lexic_branch* source, lexic_branch* destination, int siz
 	}while(end_destination != destination);
 }
 
-int stack_lexer_build_codex(lexic_word* words, int wc, lexic_branch* branches, int bc){
-	lexic_branch temp_branches[bc];
+int stack_lexer_build_codex(lexic_word* words, int words_size, lexic_branch* branches, int branches_size){
+	lexic_branch temp_branches[branches_size];
 	lexic_branch* root = __initialize_branch(temp_branches);
 	lexic_branch* newtop = __initialize_branch(temp_branches + 1);
 	int general_top = 0;
-	for(int i = 0; i < wc; i++){
-		int curr_top = _insert_word(root, newtop, &words[i], bc);
+	for(int i = 0; i < words_size; i++){
+		int curr_top = _insert_word(root, newtop, &words[i], branches_size);
 		if(curr_top > general_top){ general_top = curr_top; }
 	}
 

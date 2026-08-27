@@ -27,8 +27,27 @@ typedef struct {
 	int hard;
 }lexic_word;
 
-extern int stack_lexer_build_codex(lexic_word* words, int wc, lexic_branch* branches, int bc);
+/**
+ * Builds a 'lexic_codex' from a list of 'lexic_word'.
+ * WARNING: if the branches array is too small, this system may be prone to segfault.
+ * @fn int stack_lexer_build_codex(lexic_word*, int, lexic_branch*, int)
+ * @param words List of pre-built words
+ * @param words_size Size of words list
+ * @param branches Array of pre-allocated branches (for appending words).
+ * @param branches_size Size of the pre-allocated array.
+ * @return Amount of used branches
+ */
+extern int stack_lexer_build_codex(lexic_word* words, int words_size, lexic_branch* branches, int branches_size);
 
+/**
+ * Parses a text and generates tokens, based on the text's content.
+ * WARNING: if the tokens array is too small, this system may be prone to segfault.
+ * @fn int stack_lexer_parse(char*, lexic_branch*, lexic_token*)
+ * @param source Text to be parsed
+ * @param root Root of the 'lexic_codex' we want to use for this text
+ * @param tokens Array of pre-allocated tokens
+ * @return Amount of tokens generated
+ */
 extern int stack_lexer_parse(char* source, lexic_branch* root, lexic_token* tokens);
 
 #endif
