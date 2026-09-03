@@ -1,8 +1,6 @@
-# Stack-Lexer
+# Dynamic Interpretation State Lexer
 
 A very simple lexical analysis library written in C.
-
-Stack-Lexer provides a lightweight way to tokenize text using a pre-built lexical codex. Instead of dynamically allocating the structures required during lexical analysis, the library allows the caller to provide pre-allocated memory for both the lexical tree and the generated tokens.
 
 The lexer is designed around a simple idea:
 
