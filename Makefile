@@ -26,5 +26,10 @@ mcall:
 
 LIBNAME = dislexer
 
+release-fix:
+	@echo "$(LIBNAME) -> Fixing makes submodules"
+	@git submodule update --init makes
+	@$(call run_make_in_subdirs,./lib,release-fix)
+
 release:
 	$(call build_release,$(LIBNAME))
