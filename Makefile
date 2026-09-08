@@ -26,6 +26,5 @@ mcall:
 
 LIBNAME = dislexer
 
-.PHONY: release
 release:
 	$(call build_release,$(LIBNAME),$(LIBS))
