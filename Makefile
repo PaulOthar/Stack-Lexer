@@ -10,6 +10,8 @@ OUTPUT = $(BIN_DIR)/bin
 
 CFLAGS = -Wall -Wextra -O0 -g3
 
+LIBS = 
+
 CC = gcc
 
 include makes/release.mk
