@@ -12,8 +12,6 @@ CFLAGS = -Wall -Wextra -O0 -g3
 
 CC = gcc
 
-LIBS = -I$(LIB_DIR)/dislexer/include -L$(LIB_DIR)/dislexer/lib/$(OSTYPE) -ldislexer
-
 include makes/release.mk
 all:
 	@$(call build_dependency,./lib)
