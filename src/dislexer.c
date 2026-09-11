@@ -165,10 +165,16 @@ int dislexer_parse(dislexer_branch* codex, char* sample, dislexer_token* token){
 			return i;
 		}
 
-		if(mode == IDENTIFIER){ if(c <= 32 && previous_branch->parent == 0){
-			write_token_string(token, i - id_start, &sample[id_start]);
-			return i;
-		}}
+		if(mode == IDENTIFIER){
+			if(c <= 32 && previous_branch->parent == 0){
+				write_token_string(token, i - id_start, &sample[id_start]);
+				return i;
+			}
+			if(!c){
+				write_token_string(token, i - id_start, &sample[id_start]);
+				return i;
+			}
+		}
 		else if(depth == 0){
 			if(c == 39 || c == 34 || c == 96){ mode = STRING; submode = c; str = &sample[i + 1]; continue; }//if equals ' or " or ` XXX the part &source[i] might need to be i + 1
 			if(c >= 48 && c <= 57){ mode = NUMBER; i--; continue; }
